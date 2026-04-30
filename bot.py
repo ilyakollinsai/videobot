@@ -1,0 +1,100 @@
+import os
+import uuid
+import subprocess
+import logging
+from telegram import Update
+from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+TOKEN = os.environ.get("BOT_TOKEN", "ВАШ_ТОКЕН_СЮДА")
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "👋 Привет! Отправь мне видео, и я пересоздам его с новыми метаданными.\n\n"
+        "📹 Просто прикрепи файл — и получишь его обратно с уникальным хешем."
+    )
+
+
+async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+
+    # Получаем файл (video или document)
+    file_obj = None
+    if message.video:
+        file_obj = message.video
+    elif message.document and message.document.mime_type and "video" in message.document.mime_type:
+        file_obj = message.document
+    else:
+        await message.reply_text("❌ Пожалуйста, отправь видеофайл.")
+        return
+
+    # Проверка размера (50 МБ лимит Telegram)
+    if file_obj.file_size and file_obj.file_size > 50 * 1024 * 1024:
+        await message.reply_text("❌ Файл слишком большой. Максимум 50 МБ.")
+        return
+
+    await message.reply_text("⏳ Обрабатываю видео, подожди...")
+
+    uid = uuid.uuid4().hex
+    input_path = f"/tmp/input_{uid}.mp4"
+    output_path = f"/tmp/output_{uid}.mp4"
+
+    try:
+        # Скачиваем файл
+        tg_file = await context.bot.get_file(file_obj.file_id)
+        await tg_file.download_to_drive(input_path)
+
+        # Перекодируем с новыми метаданными через FFmpeg
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", input_path,
+            "-c:v", "libx264",
+            "-crf", "23",
+            "-preset", "fast",
+            "-c:a", "aac",
+            "-metadata", f"comment={uuid.uuid4()}",
+            "-metadata", f"title={uuid.uuid4()}",
+            "-metadata", "encoder=",
+            output_path
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+        if result.returncode != 0:
+            logger.error(f"FFmpeg error: {result.stderr}")
+            await message.reply_text("❌ Ошибка при обработке видео. Попробуй ещё раз.")
+            return
+
+        # Отправляем обратно
+        with open(output_path, "rb") as f:
+            await message.reply_document(
+                document=f,
+                filename=f"reels_{uid[:8]}.mp4",
+                caption="✅ Готово! Новые метаданные, уникальный хеш."
+            )
+
+    except subprocess.TimeoutExpired:
+        await message.reply_text("❌ Превышено время обработки. Попробуй файл поменьше.")
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        await message.reply_text("❌ Что-то пошло не так. Попробуй ещё раз.")
+    finally:
+        # Чистим временные файлы
+        for path in [input_path, output_path]:
+            if os.path.exists(path):
+                os.remove(path)
+
+
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.VIDEO | filters.Document.VIDEO, handle_video))
+    print("🤖 Бот запущен...")
+    app.run_polling()
+
+
+if __name__ == "__main__":
+    main()
