@@ -8,7 +8,7 @@ from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, fil
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TOKEN = os.environ.get("BOT_TOKEN", "ВАШ_ТОКЕН_СЮДА")
+TOKEN = os.environ.get("BOT_TOKEN")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
