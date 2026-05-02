@@ -2,6 +2,8 @@ import os
 import uuid
 import subprocess
 import logging
+import imageio_ffmpeg
+FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
 
