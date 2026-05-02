@@ -78,9 +78,9 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except subprocess.TimeoutExpired:
         await message.reply_text("❌ Превышено время обработки. Попробуй файл поменьше.")
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        await message.reply_text("❌ Что-то пошло не так. Попробуй ещё раз.")
+   except Exception as e:
+    logger.error(f"Error: {e}", exc_info=True)
+    await message.reply_text(f"❌ Ошибка: {e}")
     finally:
         # Чистим временные файлы
         for path in [input_path, output_path]:
