@@ -49,7 +49,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text("✅ Файл скачан, запускаю FFmpeg...")
 
         cmd = [
-            "ffmpeg", "-y",
+             FFMPEG_PATH, "-y",
             "-i", input_path,
             "-c:v", "libx264",
             "-crf", "23",
