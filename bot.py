@@ -3,14 +3,15 @@ import uuid
 import subprocess
 import logging
 import imageio_ffmpeg
-FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 from telegram import Update
+from telegram.request import HTTPXRequest
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 TOKEN = os.environ.get("BOT_TOKEN")
+FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -43,13 +44,11 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     output_path = f"/tmp/output_{uid}.mp4"
 
     try:
-        await message.reply_text("📥 Скачиваю файл...")
         tg_file = await context.bot.get_file(file_obj.file_id)
         await tg_file.download_to_drive(input_path)
-        await message.reply_text("✅ Файл скачан, запускаю FFmpeg...")
 
         cmd = [
-             FFMPEG_PATH, "-y",
+            FFMPEG_PATH, "-y",
             "-i", input_path,
             "-c:v", "libx264",
             "-crf", "28",
@@ -62,20 +61,23 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        await message.reply_text(f"FFmpeg код: {result.returncode}\n{result.stderr[-500:] if result.stderr else 'нет ошибок'}")
 
         if result.returncode != 0:
+            logger.error(f"FFmpeg error: {result.stderr}")
+            await message.reply_text("❌ Ошибка при обработке видео.")
             return
 
-        await message.reply_text("📤 Отправляю файл...")
         with open(output_path, "rb") as f:
             await message.reply_document(
                 document=f,
                 filename=f"reels_{uid[:8]}.mp4",
-                caption="✅ Готово!"
+                caption="✅ Готово! Новые метаданные, уникальный хеш."
             )
 
+    except subprocess.TimeoutExpired:
+        await message.reply_text("❌ Превышено время обработки.")
     except Exception as e:
+        logger.error(f"Error: {e}", exc_info=True)
         await message.reply_text(f"❌ Ошибка: {type(e).__name__}: {e}")
     finally:
         for path in [input_path, output_path]:
@@ -84,9 +86,8 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    from telegram.request import HTTPXRequest
-request = HTTPXRequest(read_timeout=120, write_timeout=120, connect_timeout=60)
-app = ApplicationBuilder().token(TOKEN).request(request).build()
+    request = HTTPXRequest(read_timeout=120, write_timeout=120, connect_timeout=60)
+    app = ApplicationBuilder().token(TOKEN).request(request).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.VIDEO | filters.Document.VIDEO, handle_video))
     print("🤖 Бот запущен...")
