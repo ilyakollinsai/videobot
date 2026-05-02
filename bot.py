@@ -21,7 +21,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
 
-    # Получаем файл (video или document)
     file_obj = None
     if message.video:
         file_obj = message.video
@@ -31,7 +30,6 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text("❌ Пожалуйста, отправь видеофайл.")
         return
 
-    # Проверка размера (50 МБ лимит Telegram)
     if file_obj.file_size and file_obj.file_size > 50 * 1024 * 1024:
         await message.reply_text("❌ Файл слишком большой. Максимум 50 МБ.")
         return
@@ -43,11 +41,11 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     output_path = f"/tmp/output_{uid}.mp4"
 
     try:
-        # Скачиваем файл
+        await message.reply_text("📥 Скачиваю файл...")
         tg_file = await context.bot.get_file(file_obj.file_id)
         await tg_file.download_to_drive(input_path)
+        await message.reply_text("✅ Файл скачан, запускаю FFmpeg...")
 
-        # Перекодируем с новыми метаданными через FFmpeg
         cmd = [
             "ffmpeg", "-y",
             "-i", input_path,
@@ -62,27 +60,22 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        await message.reply_text(f"FFmpeg код: {result.returncode}\n{result.stderr[-500:] if result.stderr else 'нет ошибок'}")
 
         if result.returncode != 0:
-            logger.error(f"FFmpeg error: {result.stderr}")
-            await message.reply_text("❌ Ошибка при обработке видео. Попробуй ещё раз.")
             return
 
-        # Отправляем обратно
+        await message.reply_text("📤 Отправляю файл...")
         with open(output_path, "rb") as f:
             await message.reply_document(
                 document=f,
                 filename=f"reels_{uid[:8]}.mp4",
-                caption="✅ Готово! Новые метаданные, уникальный хеш."
+                caption="✅ Готово!"
             )
 
-    except subprocess.TimeoutExpired:
-        await message.reply_text("❌ Превышено время обработки. Попробуй файл поменьше.")
-   except Exception as e:
-    logger.error(f"Error: {e}", exc_info=True)
-    await message.reply_text(f"❌ Ошибка: {e}")
+    except Exception as e:
+        await message.reply_text(f"❌ Ошибка: {type(e).__name__}: {e}")
     finally:
-        # Чистим временные файлы
         for path in [input_path, output_path]:
             if os.path.exists(path):
                 os.remove(path)
