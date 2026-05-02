@@ -5,5 +5,4 @@ builder = "nixpacks"
 startCommand = "python3 bot.py"
 
 [nixpacks]
-pkgs = ["python311", "ffmpeg"]
-providers = ["python"]
+pkgs = ["python312", "ffmpeg"]
