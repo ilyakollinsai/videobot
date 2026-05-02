@@ -52,7 +52,7 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
              FFMPEG_PATH, "-y",
             "-i", input_path,
             "-c:v", "libx264",
-            "-crf", "23",
+            "-crf", "28",
             "-preset", "fast",
             "-c:a", "aac",
             "-metadata", f"comment={uuid.uuid4()}",
@@ -84,7 +84,9 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    from telegram.request import HTTPXRequest
+request = HTTPXRequest(read_timeout=120, write_timeout=120, connect_timeout=60)
+app = ApplicationBuilder().token(TOKEN).request(request).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.VIDEO | filters.Document.VIDEO, handle_video))
     print("🤖 Бот запущен...")
