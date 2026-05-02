@@ -1,6 +1,9 @@
 [build]
 builder = "nixpacks"
-buildCommand = "apt-get install -y ffmpeg || nixpacks add ffmpeg"
 
 [deploy]
-startCommand = "python bot.py"
+startCommand = "python3 bot.py"
+
+[nixpacks]
+pkgs = ["python311", "ffmpeg"]
+providers = ["python"]
